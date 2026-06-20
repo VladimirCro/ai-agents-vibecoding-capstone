@@ -25,3 +25,22 @@ dist/
 # Downloaded competition archives
 *.zip
 data/*.zip
+
+# dev-agents framework (managed by install.sh — not part of this project)
+.claude/
+scripts/validate.sh
+scripts/audit-task-drift.py
+scripts/set-models.sh
+scripts/hooks/
+specs/sessions/.stash-baseline
+specs/sessions/agent-log.jsonl
+specs/improvements/
+docs/COMMANDS.md
+docs/HANDOFF_PROTOCOL.md
+docs/MIGRATION.md
+docs/PRE_IMPLEMENTATION_CHECKLIST.md
+docs/RULES.md
+docs/E2E_PATTERNS.md
+docs/MODEL_POLICY.md
+docs/templates/api-contracts-template.yaml
+docs-templates/
