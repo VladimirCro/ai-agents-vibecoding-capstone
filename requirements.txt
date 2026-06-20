@@ -1,0 +1,10 @@
+# Kaggle API client (download competition data, submit)
+kaggle>=1.6.17
+
+# Učitavanje .env varijabli
+python-dotenv>=1.0.1
+
+# --- Agent stack (Google ADK / Gemini) — tečaj koristi Google ADK ---
+# Otkomentiraj kad krenemo graditi agenta za Kaggriculture:
+# google-adk
+# google-genai

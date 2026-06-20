@@ -1,0 +1,23 @@
+# --- Python venv (sadrži i .env s tajnama) ---
+venv/
+.venv/
+
+# --- Secrets ---
+.env
+*.env
+!.env.example
+kaggle.json
+
+# --- Python ---
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.ipynb_checkpoints/
+build/
+dist/
+
+# --- IDE / OS ---
+.vscode/
+.idea/
+.DS_Store
