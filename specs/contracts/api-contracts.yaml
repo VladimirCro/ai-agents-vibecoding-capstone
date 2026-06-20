@@ -1,0 +1,490 @@
+openapi: "3.1.0"
+info:
+  title: LaunchGuard — Agent Tool & Data Contracts
+  version: "0.1.0"
+  description: >
+    LaunchGuard exposes NO HTTP API (it is a Google ADK multi-agent application;
+    `adk web` is the demo surface). This contract is the single source of truth for
+    (a) the agent's TOOL I/O JSON schemas and (b) the core data shapes the tools and
+    sub-agents exchange via ADK session state. The OpenAPI "paths" below are a
+    documentation device: each path models one TOOL as a synchronous call with a
+    request body (tool input) and a 200 response (tool output). See ADR-002 for the
+    rationale of adapting OpenAPI to tool contracts. Framing: three-source contract
+    reconciliation — never "AI linter".
+  contact:
+    name: LaunchGuard (capstone)
+    email: owner@example.com
+
+tags:
+  - name: repo-tools
+    description: RepoAuditor tools — infer the Intended contract from a repo (repo-read only)
+  - name: gcp-tools
+    description: GcpStateInspector tools — read Live GCP state (read-only) or replay a fixture
+  - name: fix-tools
+    description: FixWriter tools — propose a patch and open a fix-PR (GitHub MCP, human gate)
+  - name: data-shapes
+    description: Core data shapes exchanged between sub-agents (schema-only; no operations)
+
+servers:
+  - url: adk://launchguard/tools
+    description: ADK in-process tool invocation (no network surface)
+
+# No HTTP auth: tools run in-process under ADK. External access (gcloud, GitHub MCP)
+# authenticates via ambient credentials (ADC / GITHUB_TOKEN), documented in
+# specs/deployment-requirements.md — not modeled as an OpenAPI securityScheme.
+security: []
+
+paths:
+  # ───────────────────────── RepoAuditor tools ─────────────────────────
+  /tools/parse_dockerfile:
+    post:
+      operationId: parseDockerfile
+      summary: Parse a Dockerfile into intended-contract fragments
+      description: Deterministically extracts port/host/PID-1/base-image/user/secret/env facts from a Dockerfile (RepoAuditor).
+      tags: [repo-tools]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [repo_path, dockerfile_path]
+              properties:
+                repo_path: { type: string }
+                dockerfile_path: { type: string }
+      responses:
+        "200":
+          description: Parsed Dockerfile fragment of the intended contract
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/DockerfileFacts" }
+        "422": { $ref: "#/components/responses/ValidationError" }
+
+  /tools/parse_app_entrypoint:
+    post:
+      operationId: parseAppEntrypoint
+      summary: Infer host/port/entrypoint binding from app code
+      description: Infers the runtime host/port binding from app code; carries confidence < 1.0 when ambiguous (escalated to Gemini).
+      tags: [repo-tools]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [repo_path]
+              properties:
+                repo_path: { type: string }
+      responses:
+        "200":
+          description: Entrypoint facts (may carry confidence < 1.0 if ambiguous)
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/EntrypointFacts" }
+        "422": { $ref: "#/components/responses/ValidationError" }
+
+  /tools/read_file:
+    post:
+      operationId: readFile
+      summary: Read a repo file (repo-scoped; path-traversal rejected)
+      description: Reads a single file scoped to repo_path; paths outside the repo are rejected (allow-list / traversal guard).
+      tags: [repo-tools]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [repo_path, file_path]
+              properties:
+                repo_path: { type: string }
+                file_path: { type: string }
+      responses:
+        "200":
+          description: File contents
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [content]
+                properties:
+                  content: { type: string }
+        "403":
+          description: Path outside repo_path (allow-list / traversal violation)
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorResponse" }
+        "422": { $ref: "#/components/responses/ValidationError" }
+
+  /tools/grep_code:
+    post:
+      operationId: grepCode
+      summary: Search repo for secret refs / env usage / bind patterns
+      description: Searches the repo for a pattern (secret refs, env usage, host-bind), returning file+line evidence for the intended contract.
+      tags: [repo-tools]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [repo_path, pattern]
+              properties:
+                repo_path: { type: string }
+                pattern: { type: string }
+      responses:
+        "200":
+          description: Matches with file + line evidence
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [matches]
+                properties:
+                  matches:
+                    type: array
+                    items: { $ref: "#/components/schemas/CodeMatch" }
+        "422": { $ref: "#/components/responses/ValidationError" }
+
+  # ───────────────────────── GcpStateInspector tools ─────────────────────────
+  /tools/gcloud_read:
+    post:
+      operationId: gcloudRead
+      summary: Read-only GCP describe/list (verb allow-list enforced)
+      description: >
+        Runs a read-only gcloud call (or gcloud-mcp equivalent). The `verb` MUST be on
+        the read allow-list; any mutating verb is rejected BEFORE execution and logged
+        as a guardrail trip (AI Operating Principles §1).
+      tags: [gcp-tools]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [resource, verb, project_id]
+              properties:
+                resource:
+                  type: string
+                  enum: [sa-iam, enabled-apis, secrets, secret-accessors, run-config]
+                verb:
+                  type: string
+                  enum: [describe, list, get-iam-policy]
+                  description: Read verbs only. Mutating verbs are rejected (see 409).
+                project_id: { type: string }
+                mode:
+                  type: string
+                  enum: [live, record, fixture]
+                  default: fixture
+      responses:
+        "200":
+          description: Read-only GCP state fragment (redacted; values never returned)
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/LiveStateFragment" }
+        "409":
+          description: GUARDRAIL_TRIP — mutating verb / non-read resource rejected pre-exec
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorResponse" }
+              example:
+                code: GUARDRAIL_READONLY_VIOLATION
+                message: "Mutating gcloud verb 'add-iam-policy-binding' rejected; LaunchGuard is read-only on cloud."
+        "422": { $ref: "#/components/responses/ValidationError" }
+
+  /tools/fixture_replay:
+    post:
+      operationId: fixtureReplay
+      summary: Load a golden-JSON Live-state snapshot from disk (zero network)
+      description: Loads a recorded, redacted LiveState snapshot from fixtures/gcp/ with zero network calls; deterministic across replays (ADR-003).
+      tags: [gcp-tools]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [fixture_name]
+              properties:
+                fixture_name: { type: string }
+      responses:
+        "200":
+          description: The recorded LiveState (deterministic across replays)
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/LiveState" }
+        "404":
+          description: Fixture not found
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorResponse" }
+
+  # ───────────────────────── FixWriter tools ─────────────────────────
+  /tools/propose_patch:
+    post:
+      operationId: proposePatch
+      summary: Generate a unified diff / gcloud command for a delta (does NOT execute)
+      description: Generates a proposed fix (gcloud command / service.yaml / terraform diff) for a delta; applied=false always — the agent never executes it (AI Operating Principles §2).
+      tags: [fix-tools]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [delta]
+              properties:
+                delta: { $ref: "#/components/schemas/ReconciliationDelta" }
+      responses:
+        "200":
+          description: A proposed patch (text). Never applied automatically.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ProposedPatch" }
+        "422": { $ref: "#/components/responses/ValidationError" }
+
+  /tools/open_pr:
+    post:
+      operationId: openPr
+      summary: Open a fix-PR via GitHub MCP (human merge gate; never merges)
+      description: Opens a fix-PR via GitHub MCP against a non-default branch; surfaces the URL and stops. Never merges and never targets the default branch (409 GUARDRAIL_PR_TARGET_VIOLATION).
+      tags: [fix-tools]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [repo, branch, title, body, patches]
+              properties:
+                repo: { type: string }
+                branch: { type: string, description: "Non-default branch only; never main/master." }
+                title: { type: string }
+                body: { type: string }
+                patches:
+                  type: array
+                  items: { $ref: "#/components/schemas/ProposedPatch" }
+      responses:
+        "201":
+          description: PR created; agent stops and returns URL for human review
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [pr_url, merged]
+                properties:
+                  pr_url: { type: string, format: uri }
+                  merged: { type: boolean, enum: [false], description: "Always false — agent never merges." }
+        "409":
+          description: GUARDRAIL_TRIP — attempt to target a default branch / live mutation
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorResponse" }
+              example:
+                code: GUARDRAIL_PR_TARGET_VIOLATION
+                message: "Refusing to write to default branch; fix changes go through a reviewable PR only."
+        "422": { $ref: "#/components/responses/ValidationError" }
+
+components:
+  schemas:
+    # ───────── Tool fragments ─────────
+    DockerfileFacts:
+      type: object
+      additionalProperties: false
+      required: [port, port_source, pid1_signal_safe, base_image_pinned, non_root_user, secret_refs, env_vars, evidence]
+      properties:
+        port: { type: [integer, "null"] }
+        port_source: { type: string, enum: [dockerfile-env, dockerfile-expose, app-default, unknown] }
+        pid1_signal_safe: { type: boolean }
+        base_image_pinned: { type: boolean }
+        non_root_user: { type: boolean }
+        secret_refs: { type: array, items: { type: string } }
+        env_vars: { type: array, items: { type: string } }
+        evidence: { type: array, items: { $ref: "#/components/schemas/Evidence" } }
+
+    EntrypointFacts:
+      type: object
+      additionalProperties: false
+      required: [host_binding, port, confidence, evidence]
+      properties:
+        host_binding: { type: string, enum: ["0.0.0.0", localhost, "127.0.0.1", unknown] }
+        port: { type: [integer, "null"] }
+        confidence: { type: number, minimum: 0, maximum: 1 }
+        evidence: { type: array, items: { $ref: "#/components/schemas/Evidence" } }
+
+    CodeMatch:
+      type: object
+      additionalProperties: false
+      required: [file, line, text]
+      properties:
+        file: { type: string }
+        line: { type: integer }
+        text: { type: string }
+
+    Evidence:
+      type: object
+      additionalProperties: false
+      required: [source, locator]
+      properties:
+        source: { type: string, enum: [intended, declared, live], description: "Which of the three sources." }
+        locator: { type: string, description: "file:line, gcloud resource, or service.yaml path." }
+        snippet: { type: string, description: "REDACTED snippet (no secret values)." }
+
+    # ───────── Core data shapes (data-shapes tag) ─────────
+    IntendedContract:
+      type: object
+      description: What the code/Dockerfile require at runtime (source = Intended).
+      additionalProperties: false
+      required: [port, host_binding, pid1_signal_safe, base_image_pinned, non_root_user, secret_refs, env_vars, expects_health_probe, confidence]
+      properties:
+        port: { type: [integer, "null"] }
+        host_binding: { type: string, enum: ["0.0.0.0", localhost, "127.0.0.1", unknown] }
+        pid1_signal_safe: { type: boolean }
+        base_image_pinned: { type: boolean }
+        non_root_user: { type: boolean }
+        secret_refs: { type: array, items: { type: string } }
+        env_vars: { type: array, items: { type: string } }
+        expects_health_probe: { type: boolean }
+        expects_startup_probe: { type: boolean }
+        required_apis: { type: array, items: { type: string }, description: "e.g. aiplatform.googleapis.com inferred from code." }
+        confidence: { type: number, minimum: 0, maximum: 1 }
+
+    DeclaredState:
+      type: object
+      description: What the deploy config declares (source = Declared; from service.yaml/cloudbuild/workflow).
+      additionalProperties: false
+      required: [container_port, secret_refs, env_vars, has_liveness_probe, has_startup_probe, scaling]
+      properties:
+        service_name: { type: string }
+        container_port: { type: [integer, "null"] }
+        secret_refs: { type: array, items: { type: string }, description: "secretKeyRef names." }
+        env_vars: { type: array, items: { type: string } }
+        has_liveness_probe: { type: boolean }
+        has_startup_probe: { type: boolean }
+        service_account: { type: [string, "null"] }
+        scaling:
+          type: object
+          additionalProperties: false
+          properties:
+            min_scale: { type: [integer, "null"] }
+            max_scale: { type: [integer, "null"] }
+            concurrency: { type: [integer, "null"] }
+            cpu_throttling: { type: [boolean, "null"] }
+        templated_unresolved: { type: array, items: { type: string }, description: "${ENV} placeholders left unresolved." }
+
+    LiveState:
+      type: object
+      description: What GCP actually grants (source = Live; read-only or fixture).
+      additionalProperties: false
+      required: [project_id, runtime_sa, sa_iam_roles, enabled_apis, secrets, mode]
+      properties:
+        project_id: { type: string }
+        runtime_sa: { type: [string, "null"] }
+        sa_iam_roles: { type: array, items: { type: string } }
+        enabled_apis: { type: array, items: { type: string } }
+        secrets:
+          type: array
+          items:
+            type: object
+            additionalProperties: false
+            required: [name, accessor_members]
+            properties:
+              name: { type: string }
+              accessor_members: { type: array, items: { type: string }, description: "Members holding secretAccessor (never values)." }
+        run_config: { type: [object, "null"], description: "Existing Cloud Run service config snapshot." }
+        mode: { type: string, enum: [live, record, fixture] }
+
+    LiveStateFragment:
+      type: object
+      description: Partial LiveState returned by a single gcloud_read call.
+      additionalProperties: true
+
+    ReconciliationDelta:
+      type: object
+      description: One classified discrepancy across the three sources (Reconciler output).
+      additionalProperties: false
+      required: [rule_id, delta_class, confidence, summary, evidence]
+      properties:
+        rule_id:
+          type: string
+          enum:
+            - secret-ref-without-secretAccessor
+            - secret-declared-not-created
+            - port-mismatch
+            - host-not-0.0.0.0
+            - missing-health-probe
+            - missing-startup-probe
+            - pid1-signal-unsafe
+            - over-broad-sa-role
+            - missing-required-role
+            - api-not-enabled
+            - scaling-cost-flag
+            - unpinned-base-image
+            - ambiguous
+        delta_class:
+          type: string
+          enum: [will-fail, will-misbehave, cost-risk, needs-review]
+        confidence: { type: number, minimum: 0, maximum: 1 }
+        summary: { type: string, description: "REDACTED human summary (no secret values)." }
+        recommendation: { type: string }
+        evidence:
+          type: array
+          minItems: 1
+          items: { $ref: "#/components/schemas/Evidence" }
+
+    ProposedPatch:
+      type: object
+      additionalProperties: false
+      required: [rule_id, kind, content, applied]
+      properties:
+        rule_id: { type: string }
+        kind: { type: string, enum: [gcloud-command, service-yaml-diff, dockerfile-diff, terraform-diff] }
+        content: { type: string, description: "The exact diff/command for the human to apply. Never executed by the agent." }
+        applied: { type: boolean, enum: [false], description: "Always false — informational only." }
+
+    ReadinessScorecard:
+      type: object
+      additionalProperties: false
+      required: [verdict, counts, deltas]
+      properties:
+        verdict: { type: string, enum: [BLOCKED, WARN, READY] }
+        counts:
+          type: object
+          additionalProperties: false
+          required: [will_fail, will_misbehave, cost_risk, needs_review]
+          properties:
+            will_fail: { type: integer }
+            will_misbehave: { type: integer }
+            cost_risk: { type: integer }
+            needs_review: { type: integer }
+        deltas:
+          type: array
+          items: { $ref: "#/components/schemas/ReconciliationDelta" }
+        pr_url: { type: [string, "null"], format: uri }
+
+    ErrorResponse:
+      type: object
+      additionalProperties: false
+      required: [code, message]
+      properties:
+        code: { type: string }
+        message: { type: string }
+        details: { type: object, additionalProperties: true }
+
+  responses:
+    ValidationError:
+      description: Input failed schema validation
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/ErrorResponse" }
+          example:
+            code: VALIDATION_ERROR
+            message: "Required field 'repo_path' missing."
