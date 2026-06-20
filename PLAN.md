@@ -1,120 +1,69 @@
-# PLAN — Debug/Incident Agent ("Sherlog")
+# PLAN — LaunchGuard (Cloud Run deploy-readiness agent)
 
-Capstone: **Agents for Business** trač. Autonoman agent koji dijagnosticira bugove iz
-logova, nađe uzrok u kodu, predloži fix i verificira ga — **zatvorena petlja**, ne summary-bot.
+Capstone: **Agents for Business** trač. Autonoman ADK+Gemini agent koji prije deploya pomiruje
+tri izvora istine (kod ⟷ deklaracija ⟷ live GCP) i hvata "silent-misbehave" misconfiguracije.
 
-> Radni naziv: **Sherlog** (Sherlock + log). Pamtljiv za video; mijenjamo ako nađemo bolji.
+> Pivot iz "Sherlog" (debug agent, score 30/50, zasićena niša) → **LaunchGuard** (39/50,
+> najdiferenciraniji, sjeda na user-ov GCP/spec2gcp ekspertizu). Detalji odluke: vidi memoriju.
 
-## 1. Što agent radi (zatvorena petlja)
+## Što agent radi
 
 ```
-ALERT (anomalija u logovima)
+TARGET (Cloud Run servis, npr. worknote-ai)
    ↓
-[1] TRIAGE        → klasificira, planira istragu
-[2] LOG EVIDENCE  → povuče logove oko incidenta (tool: log search)
-[3] CODE EVIDENCE → nađe relevantni kod + zadnje git diffove (tool: rg, git)
-[4] HYPOTHESIS    → rangira uzroke po vjerojatnosti
-[5] REPRODUCE     → pozove endpoint / provjeri DB / pokrene test (sandbox, read-only)
-[6] FIX           → generira diff + objašnjenje, otvori PR (NE primjenjuje sam)
-[7] VERIFY        → re-run testova; potvrdi da fix rješava
+[1] RepoAuditor        → inferira "intended contract" (PORT, env, secret refs, health probe)
+[2] GcpStateInspector  → čita LIVE GCP read-only (SA IAM, APIs, Secret Manager grants, run config)
+[3] Reconciler         → diff TRI izvora → delta: will-fail / will-misbehave / cost-risk
+[4] FixWriter          → diffovi + readiness scorecard → otvori PR (human gate, nikad live mutacija)
 ```
 
-Korak [5] i [7] su ono što ga čine **agentom, a ne pipeline-om**: skuplja nove dokaze i
-ispravlja se na temelju rezultata.
+**Killer trace (okosnica videa):**
+> "Kod traži `SECRET_FOO`, runtime SA nema `secretAccessor` → deploy prolazi, prvi request 500
+> → evo IAM diffa + PR."
 
-## 2. Arhitektura (multi-agent, Google ADK)
+## Diferencijator (čuvati framing!)
 
-- **Orchestrator** (root agent) — vodi petlju, odlučuje sljedeći korak, zna stati.
-- **LogInvestigator** (sub-agent) — alat: `search_logs(query, time_window)`.
-- **CodeInvestigator** (sub-agent) — alati: `grep_code`, `read_file`, `git_log`, `git_diff`.
-- **Reproducer** (sub-agent) — alati: `http_call`, `db_query` (read-only), `run_tests`.
-- **FixWriter** (sub-agent) — alati: `propose_patch`, `open_pr` (human-in-the-loop gate).
+Tri-source delta koji **nijedan postojeći alat ne računa**: Checkov vidi samo repo, GCP Security
+Review samo live state, deploy samo deklaraciju. Vrijednost je u **delti između tri izvora**.
+NIKAD se ne smije prodavati kao "AI linter" — tada collapse na Checkov.
 
-> **Teaching:** ne dijeli agente bez razloga. Svaki sub-agent mora "zaraditi mjesto" =
-> ima svoj skup toolova i svoju odgovornost. Previše agenata = overhead + gubitak konteksta.
-> 4–5 ovdje je opravdano jer su faze istrage stvarno različite.
+## Dvije non-negotiable prekretnice
 
-## 3. "Žrtva" — namjerno buggy demo-app
+1. **Golden-JSON fixture layer (Dan 3):** snimi prave gcloud outpute jednom → replay offline.
+   Bez toga headline feature nije reproducibilan za žiri i demo je flaky. Ako slipa → fallback ideja "Pacijent".
+2. **Framing = tri-source contract reconciliation** (gore).
 
-Mali **FastAPI + Postgres** servis (tvoj stack) s **strukturiranim audit/error logovima**.
-Bugovi se ubacuju kontrolirano (jedan bug = jedan git branch/commit) → daje nam **ground
-truth** za eval i čist demo.
+## Hero target & Reuse
 
-Kategorije bugova (za raznolikost u eval setu):
-- logička greška / off-by-one
-- `None`/null dereference
-- loša DB migracija / constraint
-- N+1 / perf regresija
-- race condition / concurrency
-- auth/permission bug (npr. nedostaje RLS provjera)
-- config/env greška
-- bad input validation
+- **Hero target (REAL):** `worknote-ai` (live Cloud Run; ima sva tri izvora). Demo na stvarnom servisu.
+- **Reuse:** `cloud-run-prep-agents/playbook/CLOUD_RUN_DEPLOYMENT_PLAYBOOK.md` → detektorska pravila.
 
-## 4. Memorija (Day 3 — context engineering)
+## Stack
 
-**Incident history**: agent pamti prošle incidente i njihova rješenja. Kod novog incidenta
-prepozna obrazac: *"ovo liči na incident #4 od prošlog tjedna — isti root cause."*
-→ Pohrana u Postgres (embeddings + metadata). Diferencijator i pokazuje curriculum.
+Google ADK + Gemini 2.5 · gcloud (read-only, gcloud-mcp) + GitHub MCP (PR) · PostgreSQL+pgvector
+(memorija) · pytest (eval) · `adk web` (demo). Detalji: `docs/TECH_STACK.md`.
 
-## 5. Guardraili + sigurnost (Day 4 — najjači diferencijator)
-
-- **Human-in-the-loop:** agent NIKAD ne primjenjuje fix sam → otvara PR, čovjek odobrava.
-- **Read-only po defaultu:** Reproducer ne smije pisati u bazu; sandbox za izvršavanje.
-- **PII redakcija:** logovi se čiste prije slanja u LLM.
-- **Prompt-injection obrana:** logovi su attacker-influenced podaci → tretiraju se kao
-  **untrusted input**. Agent ih ne smije poslušati kao instrukcije.
-  > **Teaching:** "lethal trifecta" = untrusted input + pristup alatima + eksfiltracija.
-  > Log-čitajući agent ima sve tri → guardrail nije dodatak, nego srž dizajna.
-- **Tool allow-listing** + audit trail svake akcije agenta.
-
-## 6. Eval harness (ovo nosi bodove — skoro nitko ne pokaže)
-
-Set od **15–20 kontroliranih bugova** s ground-truth uzrokom i fixom. Mjerimo:
-- **Root-cause accuracy** — je li pogodio točan file/line/uzrok
-- **Fix correctness** — prolazi li predloženi fix testove
-- **MTTR proxy** — broj koraka / tool-callova do rješenja
-- **Tool efficiency** — suvišni pozivi
-
-→ Automatiziran (pytest-based) → **scorecard** koji ide direktno u writeup.
-> **Teaching:** ne možeš poboljšati što ne mjeriš. Kontrolirani bugovi = ground truth =
-> objektivna metrika umjesto "izgleda da radi".
-
-## 7. Observability + demo UI (Day 5)
-
-- **Trace** svakog koraka (koji agent, koji tool, koje rezoniranje).
-- Za demo koristimo **ADK dev UI (`adk web`)** koji već prikazuje agent traceove →
-  štedi nam dane UI rada. Ako ostane vremena, mali React/Streamlit timeline.
-
-## 8. Tech izbor
-
-| Sloj | Izbor | Zašto |
-|---|---|---|
-| Agent framework | **Google ADK** | Tečajni alat → žiri to očekuje/nagrađuje; multi-agent + sessions + tracing + dev UI out-of-the-box |
-| Model | **Gemini 2.x** | Pravila eksplicitno dopuštaju; native uz ADK |
-| Žrtva-app | FastAPI + Postgres | Tvoj stack → brza, autentična izvedba |
-| Toolovi | ripgrep, git, httpx, psycopg, pytest | Standard, bez egzotike |
-| Eval | pytest + scorecard | Ground-truth metrike |
-| Demo UI | `adk web` (+ opc. timeline) | Štedi vrijeme |
-
-## 9. Raspored (~10 radnih dana, rok 2026-07-06 PT)
+## Raspored (~10 radnih dana, rok 2026-07-06 PT)
 
 | Dan | Cilj |
 |---|---|
-| 1–2 | Scaffolding: žrtva-app + strukturirani logovi + bug-injection + 3–4 seed buga |
-| 3–4 | Core agent loop (single agent + toolovi: log/code/git) → diagnose 1 bug end-to-end |
-| 5 | Multi-agent split + hypothesis ranking + fix proposal (PR generacija) |
-| 6 | Memorija (incident history) + reproduce/verify petlja |
-| 7 | Guardraili + sigurnost (PII redakcija, human-in-loop, prompt-injection obrana) |
-| 8 | Eval harness: 15+ bugova, scorecard, iteracija na točnosti |
-| 9 | Observability/trace polish + **snimanje demo videa** |
+| 1–2 | ADK orchestrator + sub-agenti skeleton. **RepoAuditor**: parse Dockerfile/entrypoint/env/secret refs → "intended contract" JSON (deterministički + Gemini za ambiguitet) |
+| 3 | **GcpStateInspector** read-only nad gcloud (SA IAM, APIs, secrets+grants, run config). **Golden-JSON fixture layer** (snimi worknote-ai outpute, replay offline) — NON-NEGOTIABLE |
+| 4 | **Reconciler** (core IP): diff intended ⟷ declared ⟷ live; klasifikacija delte; hard-code high-value detektori (secret/secretAccessor, PORT, health probe, over-broad SA, scaling cost) |
+| 5 | **FixWriter**: diffovi + readiness scorecard, open_pr (GitHub MCP). Guardrail spine: read-only enforcement, secret redakcija, allow-list, jedan demo blocked-write |
+| 6–7 | 8–10 misconfigured repo fixtures (ground-truth, hero=secret/IAM). Eval run → precision/recall scorecard |
+| 8 | Memorija (per-project gotcha, pgvector/ADK memory) — tanko, 1–2 recall momenta |
+| 9 | Stretch (cuttable): `gcloud run deploy --no-traffic` canary za potvrdu blockera. Polish `adk web` traceova. **Snimanje videa** |
 | 10 | Writeup + rationale + submission. Buffer. |
 
-> Video + writeup nose ~pola bodova → dani 9–10 su sveti, ne "ako ostane vremena".
+> Dani 9–10 (video + writeup) su sveti — ~pola bodova. Canary je prvi koji pada ako slipamo.
 
-## 10. Što presuđuje (checklist za pobjedu)
+## Checklist za pobjedu
 
-- [ ] Vidljiva autonomnost (zatvorena petlja, self-correct)
-- [ ] Eval scorecard s brojkama
-- [ ] Guardraili kao dio priče (ne dodatak)
-- [ ] Oštar 60s hook u videu ("bug u 14:32 → PR u 14:33")
-- [ ] Čist writeup: problem → rješenje → arhitektura → rezultati
+- [ ] Tri-source reconciliation radi end-to-end na worknote-ai
+- [ ] Golden-JSON fixture layer (reproducibilno offline)
+- [ ] SECRET_FOO killer trace u videu
+- [ ] Eval scorecard s brojkama (precision/recall nad fixtureima)
+- [ ] Guardrail-trip vidljiv u traceu (blocked write + redacted secret)
+- [ ] MCP interop (gcloud-mcp + GitHub MCP) kao eksplicitna priča
+- [ ] Framing "tri-source", ne "linter"
