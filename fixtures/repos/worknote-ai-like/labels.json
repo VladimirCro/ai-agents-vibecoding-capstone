@@ -1,0 +1,25 @@
+{
+  "fixture_name": "worknote-ai-like",
+  "description": "Hero fixture: worknote-ai-shaped repo with JWT_SECRET_KEY secret accessor missing.",
+  "expected_verdict": "BLOCKED",
+  "expected_blockers": [
+    {
+      "rule_id": "secret-ref-without-secretAccessor",
+      "delta_class": "will-fail",
+      "secret_name": "JWT_SECRET_KEY",
+      "note": "Hero TP: JWT_SECRET_KEY exists in SM but runtime SA has NO accessor_members — service will fail to start"
+    }
+  ],
+  "expected_warnings": [],
+  "true_negatives": [
+    "SES_SMTP_USERNAME",
+    "SES_SMTP_PASSWORD",
+    "SES_SMTP_HOST",
+    "SENTRY_DSN_BACKEND",
+    "LITELLM_AZURE_API_KEY",
+    "LITELLM_AZURE_ENDPOINT",
+    "LITELLM_VERTEX_CREDENTIALS",
+    "CLAMAV_FUNCTION_URL"
+  ],
+  "notes": "All 8 non-JWT secrets have the SA in accessor_members (should NOT fire). Only JWT_SECRET_KEY fires."
+}

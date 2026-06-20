@@ -1,0 +1,35 @@
+{
+  "headline": "Caught 1/1 blockers across 1 fixture(s); precision=1.00 / recall=1.00",
+  "total_fixtures": 1,
+  "passed_fixtures": 1,
+  "failed_fixtures": 0,
+  "errored_fixtures": 0,
+  "aggregate_precision": 1.0,
+  "aggregate_recall": 1.0,
+  "total_expected_blockers": 1,
+  "total_tp": 1,
+  "total_fp": 0,
+  "total_fn": 0,
+  "fixtures": [
+    {
+      "name": "worknote-ai-like",
+      "verdict": "BLOCKED",
+      "expected_verdict": "BLOCKED",
+      "verdict_match": true,
+      "expected_blockers": [
+        "secret-ref-without-secretAccessor"
+      ],
+      "detected_blockers": [
+        "secret-ref-without-secretAccessor"
+      ],
+      "true_positives": [
+        "secret-ref-without-secretAccessor"
+      ],
+      "false_positives": [],
+      "false_negatives": [],
+      "precision": 1.0,
+      "recall": 1.0,
+      "error": null
+    }
+  ]
+}

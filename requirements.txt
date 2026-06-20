@@ -1,10 +1,44 @@
-# Kaggle API client (download competition data, submit)
-kaggle>=1.6.17
+# LaunchGuard — Python dependencies
+#
+# CONSTRAINED-NETWORK NOTE (sandbox / WSL2 environment):
+#   PyPI metadata is reachable but `pip install` / `pip download` may HANG or timeout.
+#   The deterministic core (launchguard/reconciler/, tools/, guardrails/) has ZERO
+#   runtime deps beyond stdlib + pyyaml — no install required to parse or reconcile.
+#   Run 'make install' (uses 60s timeout) to attempt installation of the full stack.
+#   If it hangs: install from locally cached wheels, or use `pip install --no-deps`.
+#
+# Existing venv already has: python-dotenv 1.2.2, PyYAML 6.0.3
 
-# Učitavanje .env varijabli
+# ---------------------------------------------------------------------------
+# Agent stack (Google ADK + Gemini)
+# ---------------------------------------------------------------------------
+# google-adk: Google Agent Development Kit — multi-agent framework, ADK sessions,
+#             `adk web` dev UI, tool registration, tracing.
+google-adk
+
+# google-genai: Gemini model SDK (ADK uses this internally).
+#               Gemini 2.5 Pro (reasoning/reconciliation) + 2.5 Flash (parsing).
+google-genai
+
+# ---------------------------------------------------------------------------
+# Env / config
+# ---------------------------------------------------------------------------
 python-dotenv>=1.0.1
+PyYAML>=6.0
 
-# --- Agent stack (Google ADK / Gemini) — tečaj koristi Google ADK ---
-# Otkomentiraj kad krenemo graditi agenta za Kaggriculture:
-# google-adk
-# google-genai
+# ---------------------------------------------------------------------------
+# Testing & eval harness
+# ---------------------------------------------------------------------------
+pytest>=8.0
+pytest-asyncio>=0.23
+
+# ---------------------------------------------------------------------------
+# Linting & type-checking (local-CI / make verify)
+# ---------------------------------------------------------------------------
+ruff>=0.4
+mypy>=1.10
+
+# ---------------------------------------------------------------------------
+# Data download (Kaggle — original capstone env; keep for compatibility)
+# ---------------------------------------------------------------------------
+kaggle>=1.6.17

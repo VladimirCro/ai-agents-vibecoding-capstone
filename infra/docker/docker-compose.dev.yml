@@ -1,0 +1,41 @@
+# LaunchGuard — Local dev services
+# NEW_SERVICE: postgres-pgvector (architecture.md §8)
+# Purpose: per-project gotcha memory (pgvector similarity recall) + eval substrate
+#
+# Usage:
+#   make db-up          # start
+#   make db-down        # stop + wipe volumes
+#   make db-logs        # tail logs
+#   docker compose -f infra/docker/docker-compose.dev.yml up -d
+#
+# DATABASE_URL (in venv/.env or .env.example):
+#   postgresql://launchguard:launchguard@localhost:5432/launchguard_memory
+#
+# Requires: Docker Engine 20.10+ with Compose v2 plugin.
+
+services:
+  postgres:
+    image: pgvector/pgvector:pg16
+    # pgvector/pgvector:pg16 ships Postgres 16 + pgvector extension pre-installed.
+    # No custom Dockerfile or init script needed — extension is available on install.
+    container_name: launchguard_postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: launchguard
+      POSTGRES_PASSWORD: launchguard
+      POSTGRES_DB: launchguard_memory
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U launchguard -d launchguard_memory"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+
+volumes:
+  postgres_data:
+    name: launchguard_postgres_data

@@ -1,0 +1,9 @@
+# ruff.toml — LaunchGuard linting configuration
+# Line length: 120 chars (pre-existing code + docstrings exceed 88-char default)
+line-length = 120
+
+[lint]
+select = ["E", "F", "W", "I"]
+ignore = [
+    "E501",  # Line too long — handled by formatter; long f-strings in reconciler are intentional
+]

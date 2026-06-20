@@ -1,0 +1,94 @@
+apiVersion: serving.knative.dev/v1
+kind: Service
+metadata:
+  name: worknote-ai
+  namespace: "${PROJECT_NUMBER}"
+  labels:
+    cloud.googleapis.com/location: us-central1
+  annotations:
+    run.googleapis.com/ingress: all
+    run.googleapis.com/minScale: "0"
+    run.googleapis.com/maxScale: "3"
+    run.googleapis.com/cpu-throttling: "true"
+spec:
+  template:
+    metadata:
+      annotations:
+        autoscaling.knative.dev/minScale: "0"
+        autoscaling.knative.dev/maxScale: "3"
+        run.googleapis.com/cpu-throttling: "true"
+    spec:
+      containerConcurrency: 80
+      serviceAccountName: "${SA_EMAIL}"
+      containers:
+        - image: "gcr.io/${PROJECT_ID}/worknote-ai:${ENV}-latest"
+          ports:
+            - containerPort: 8080
+          env:
+            - name: ENV
+              value: "${ENV}"
+            - name: PORT
+              value: "8080"
+            # Secrets — referenced by name only, values injected by Cloud Run
+            - name: JWT_SECRET_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: JWT_SECRET_KEY
+                  key: latest
+            - name: SES_SMTP_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: SES_SMTP_USERNAME
+                  key: latest
+            - name: SES_SMTP_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: SES_SMTP_PASSWORD
+                  key: latest
+            - name: SES_SMTP_HOST
+              valueFrom:
+                secretKeyRef:
+                  name: SES_SMTP_HOST
+                  key: latest
+            - name: SENTRY_DSN_BACKEND
+              valueFrom:
+                secretKeyRef:
+                  name: SENTRY_DSN_BACKEND
+                  key: latest
+            - name: LITELLM_AZURE_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: LITELLM_AZURE_API_KEY
+                  key: latest
+            - name: LITELLM_AZURE_ENDPOINT
+              valueFrom:
+                secretKeyRef:
+                  name: LITELLM_AZURE_ENDPOINT
+                  key: latest
+            - name: LITELLM_VERTEX_CREDENTIALS
+              valueFrom:
+                secretKeyRef:
+                  name: LITELLM_VERTEX_CREDENTIALS
+                  key: latest
+            - name: CLAMAV_FUNCTION_URL
+              valueFrom:
+                secretKeyRef:
+                  name: CLAMAV_FUNCTION_URL
+                  key: latest
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8080
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          startupProbe:
+            httpGet:
+              path: /ready
+              port: 8080
+            initialDelaySeconds: 5
+            periodSeconds: 5
+            failureThreshold: 12
+          resources:
+            limits:
+              memory: 512Mi
+              cpu: "1"

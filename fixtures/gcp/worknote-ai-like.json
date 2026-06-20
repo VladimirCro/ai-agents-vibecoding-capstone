@@ -1,0 +1,74 @@
+{
+  "enabled_apis": [
+    "cloudresourcemanager.googleapis.com",
+    "run.googleapis.com",
+    "secretmanager.googleapis.com",
+    "iam.googleapis.com",
+    "cloudbuild.googleapis.com",
+    "containerregistry.googleapis.com"
+  ],
+  "mode": "fixture",
+  "project_id": "worknote-ai-like-project",
+  "run_config": null,
+  "runtime_sa": "serviceAccount:worknote-ai-sa@worknote-ai-like-project.iam.gserviceaccount.com",
+  "sa_iam_roles": [
+    "roles/run.invoker",
+    "roles/secretmanager.secretAccessor",
+    "roles/logging.logWriter",
+    "roles/monitoring.metricWriter"
+  ],
+  "secrets": [
+    {
+      "accessor_members": [],
+      "name": "JWT_SECRET_KEY"
+    },
+    {
+      "accessor_members": [
+        "serviceAccount:worknote-ai-sa@worknote-ai-like-project.iam.gserviceaccount.com"
+      ],
+      "name": "SES_SMTP_USERNAME"
+    },
+    {
+      "accessor_members": [
+        "serviceAccount:worknote-ai-sa@worknote-ai-like-project.iam.gserviceaccount.com"
+      ],
+      "name": "SES_SMTP_PASSWORD"
+    },
+    {
+      "accessor_members": [
+        "serviceAccount:worknote-ai-sa@worknote-ai-like-project.iam.gserviceaccount.com"
+      ],
+      "name": "SES_SMTP_HOST"
+    },
+    {
+      "accessor_members": [
+        "serviceAccount:worknote-ai-sa@worknote-ai-like-project.iam.gserviceaccount.com"
+      ],
+      "name": "SENTRY_DSN_BACKEND"
+    },
+    {
+      "accessor_members": [
+        "serviceAccount:worknote-ai-sa@worknote-ai-like-project.iam.gserviceaccount.com"
+      ],
+      "name": "LITELLM_AZURE_API_KEY"
+    },
+    {
+      "accessor_members": [
+        "serviceAccount:worknote-ai-sa@worknote-ai-like-project.iam.gserviceaccount.com"
+      ],
+      "name": "LITELLM_AZURE_ENDPOINT"
+    },
+    {
+      "accessor_members": [
+        "serviceAccount:worknote-ai-sa@worknote-ai-like-project.iam.gserviceaccount.com"
+      ],
+      "name": "LITELLM_VERTEX_CREDENTIALS"
+    },
+    {
+      "accessor_members": [
+        "serviceAccount:worknote-ai-sa@worknote-ai-like-project.iam.gserviceaccount.com"
+      ],
+      "name": "CLAMAV_FUNCTION_URL"
+    }
+  ]
+}
