@@ -1,0 +1,12 @@
+{
+  "fixture_name": "over-broad-sa",
+  "description": "Runtime SA holds roles/owner — over-broad (least-privilege violation).",
+  "expected_verdict": "WARN",
+  "expected_blockers": [],
+  "expected_warnings": [
+    {
+      "rule_id": "over-broad-sa-role",
+      "delta_class": "will-misbehave"
+    }
+  ]
+}

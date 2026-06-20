@@ -1,0 +1,38 @@
+apiVersion: serving.knative.dev/v1
+kind: Service
+metadata:
+  name: demo-service
+  annotations:
+    run.googleapis.com/minScale: "0"
+    run.googleapis.com/maxScale: "3"
+    run.googleapis.com/cpu-throttling: "true"
+spec:
+  template:
+    metadata:
+      annotations:
+        autoscaling.knative.dev/minScale: "0"
+        autoscaling.knative.dev/maxScale: "3"
+        run.googleapis.com/cpu-throttling: "true"
+    spec:
+      containerConcurrency: 40
+      serviceAccountName: "svc@demo-project.iam.gserviceaccount.com"
+      containers:
+        - image: "gcr.io/demo-project/demo-service:latest"
+          ports:
+            - containerPort: 8080
+          env:
+            - name: PORT
+              value: "8080"
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8080
+          startupProbe:
+            httpGet:
+              path: /ready
+              port: 8080
+            failureThreshold: 12
+          resources:
+            limits:
+              memory: 512Mi
+              cpu: "1"

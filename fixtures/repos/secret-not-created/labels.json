@@ -1,0 +1,13 @@
+{
+  "fixture_name": "secret-not-created",
+  "description": "Secret declared in service.yaml but never created in Secret Manager.",
+  "expected_verdict": "BLOCKED",
+  "expected_blockers": [
+    {
+      "rule_id": "secret-declared-not-created",
+      "delta_class": "will-fail",
+      "note": "STRIPE_API_KEY referenced but absent from Live secrets."
+    }
+  ],
+  "expected_warnings": []
+}

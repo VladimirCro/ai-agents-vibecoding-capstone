@@ -1,0 +1,19 @@
+{
+  "fixture_name": "api-not-enabled",
+  "description": "Code needs Vertex AI (aiplatform) but API not enabled + SA lacks role.",
+  "expected_verdict": "BLOCKED",
+  "required_apis": [
+    "aiplatform.googleapis.com"
+  ],
+  "expected_blockers": [
+    {
+      "rule_id": "api-not-enabled",
+      "delta_class": "will-fail"
+    },
+    {
+      "rule_id": "missing-required-role",
+      "delta_class": "will-fail"
+    }
+  ],
+  "expected_warnings": []
+}

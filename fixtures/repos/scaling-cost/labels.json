@@ -1,0 +1,12 @@
+{
+  "fixture_name": "scaling-cost",
+  "description": "minScale=20, maxScale=1000, cpu-throttling off — cost risk.",
+  "expected_verdict": "WARN",
+  "expected_blockers": [],
+  "expected_warnings": [
+    {
+      "rule_id": "scaling-cost-flag",
+      "delta_class": "cost-risk"
+    }
+  ]
+}

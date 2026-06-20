@@ -1,0 +1,7 @@
+{
+  "fixture_name": "clean-control",
+  "description": "Fully healthy repo — true-negative control. Nothing should fire.",
+  "expected_verdict": "READY",
+  "expected_blockers": [],
+  "expected_warnings": []
+}

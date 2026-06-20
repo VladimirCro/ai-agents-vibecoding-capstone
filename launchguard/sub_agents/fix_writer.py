@@ -10,12 +10,13 @@ Human-in-the-loop gate (AI Operating Principles §2): FixWriter OPENS a PR and s
 It never merges, never applies patches directly, and never mutates live GCP state.
 The human reviews and merges.
 
-*** INCREMENT 1 STATUS: PLACEHOLDER STUB ***
-This module defines the agent factory, allow-list, and session-state contract.
-The actual diff/PR-body generation prompts (LLM-04) and tool wiring (BE-06) are
-deferred to Increment 2.  In Increment 1, calling build_fix_writer_agent() constructs
-a structurally complete Agent with the correct model/name/instruction but with no tools
-registered (they are injected by backend BE-06 in Increment 2).
+*** INCREMENT 2 STATUS: WIRED ***
+BE-06 (propose_patch, open_pr tools) and LLM-04 (PR-body generation prompt) are now
+implemented.  build_fix_writer_agent() registers the two FixWriter tools from
+launchguard.tools.fix_tools and carries the LLM-04 PR-narrative instruction.  The
+deterministic pipeline (verdict, counts, patches, scorecard, PR body) lives in
+launchguard.fix_writer_core and is fully testable WITHOUT google-adk or a model — the
+ADK agent is a thin model-driven wrapper over that core.
 
 SESSION-STATE CONTRACT
 ----------------------
@@ -82,30 +83,27 @@ def _get_agent_class():
 
 def build_fix_writer_agent():
     """
-    Build and return the FixWriter ADK Agent.
+    Build and return the FixWriter ADK Agent (Increment 2: tools wired).
 
-    [Increment 1 stub]: Returns a structurally complete Agent with the correct
-    model, name, and instruction.  Tools (propose_patch, open_pr) are NOT yet
-    registered — they will be injected by backend BE-06 in Increment 2.
+    Registers the two FixWriter tools (propose_patch, open_pr) from
+    launchguard.tools.fix_tools and carries the LLM-04 PR-narrative instruction.
 
-    In Increment 1 the agent will:
+    The agent's behavior is:
       - Read reconciliation_deltas from session state
       - Compute ReadinessScorecard (verdict + counts) deterministically
-      - Write scorecard to session state
-      - NOT yet generate patches or open a PR (tools not wired)
+      - For each delta, call propose_patch to generate a fix (applied=False always)
+      - Call open_pr (mock dry-run by default; real mode needs GITHUB_TOKEN) on a
+        non-default branch — never merges, never targets main/master
+      - Write readiness_scorecard, proposed_patches, and pr_url to session state
 
     Raises:
         RuntimeError: if google-adk is not installed.
 
     Returns:
         google.adk.agents.Agent: the constructed FixWriter agent.
-
-    TODO (LLM-04, Increment 2): Wire propose_patch + open_pr tools after BE-06.
-    TODO (LLM-04, Increment 2): Implement PR-body generation prompt (structured output,
-    redaction before model call, evidence-grounded narrative, no free-text fix bypassing
-    the propose_patch schema).
     """
     from launchguard.config import MODEL_PRO  # noqa: PLC0415
+    from launchguard.tools.fix_tools import open_pr, propose_patch  # noqa: PLC0415
 
     Agent = _get_agent_class()
 
@@ -114,10 +112,10 @@ def build_fix_writer_agent():
         model=MODEL_PRO,
         description=(
             "Converts ReconciliationDelta objects into a ReadinessScorecard, proposed patches, "
-            "and a fix-PR (GitHub MCP, human merge gate).  Never applies fixes directly.  "
-            "[Increment 1: scorecard computation only; patch + PR wired in Increment 2 / LLM-04]"
+            "and a fix-PR (GitHub MCP, human merge gate).  Never applies fixes directly."
         ),
         instruction=_FIX_WRITER_INSTRUCTION,
+        tools=[propose_patch, open_pr],
     )
 
 
@@ -127,9 +125,15 @@ You are FixWriter, the final sub-agent in the LaunchGuard three-source reconcili
 YOUR JOB:
   1. Read reconciliation_deltas from session state.
   2. Compute a ReadinessScorecard (verdict = BLOCKED / WARN / READY, counts by class).
-  3. [Increment 2] For each delta, call propose_patch to generate a fix.
-  4. [Increment 2] Call open_pr to open a fix-PR on a non-default branch.
+  3. For each delta, call propose_patch to generate a fix (applied=false always).
+  4. Call open_pr to open a fix-PR on a non-default branch (mock dry-run by default).
   5. Write readiness_scorecard, proposed_patches, and pr_url to session state.
+
+PR NARRATIVE (LLM-04):
+  When you write the PR body, ground EVERY statement in a delta's evidence (source +
+  locator). Do NOT invent commands — the actionable command/diff comes from
+  propose_patch.content. You may explain and summarize; you may not fabricate a fix that
+  bypasses the propose_patch schema. Reference secrets by NAME only.
 
 VERDICT RULE (deterministic — do not use model judgment):
   BLOCKED  → any delta with delta_class = "will-fail"
@@ -147,10 +151,6 @@ REDACTION (AI Operating Principles §3):
   Your PR title, body, and all patch content must not contain secret values, tokens,
   or passwords.  Reference secrets by NAME only (e.g., "SECRET_FOO").
   The redaction seam (BE-07) runs before any model call — do not bypass it.
-
-[INCREMENT 1 NOTE]:
-  propose_patch and open_pr tools are not yet registered.  In this increment, compute
-  and write the ReadinessScorecard only.  Set proposed_patches to [] and pr_url to null.
 
 DO NOT:
   - Merge the PR.

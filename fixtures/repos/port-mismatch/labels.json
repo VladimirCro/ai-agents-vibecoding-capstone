@@ -1,0 +1,12 @@
+{
+  "fixture_name": "port-mismatch",
+  "description": "Dockerfile PORT=3000 but service.yaml containerPort=8080.",
+  "expected_verdict": "WARN",
+  "expected_blockers": [],
+  "expected_warnings": [
+    {
+      "rule_id": "port-mismatch",
+      "delta_class": "will-misbehave"
+    }
+  ]
+}

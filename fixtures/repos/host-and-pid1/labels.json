@@ -1,0 +1,16 @@
+{
+  "fixture_name": "host-and-pid1",
+  "description": "App binds 127.0.0.1 (loopback) AND uses shell-form CMD (PID1 unsafe).",
+  "expected_verdict": "WARN",
+  "expected_blockers": [],
+  "expected_warnings": [
+    {
+      "rule_id": "host-not-0.0.0.0",
+      "delta_class": "will-misbehave"
+    },
+    {
+      "rule_id": "pid1-signal-unsafe",
+      "delta_class": "will-misbehave"
+    }
+  ]
+}

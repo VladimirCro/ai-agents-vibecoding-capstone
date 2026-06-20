@@ -580,6 +580,39 @@ def reconcile(
 
 
 # ---------------------------------------------------------------------------
+# LLM-03 seam wrapper: deterministic rules + fail-safe ambiguity residue
+# ---------------------------------------------------------------------------
+
+def reconcile_with_ambiguity(
+    intended: IntendedContract,
+    declared: DeclaredState,
+    live: LiveState,
+) -> list[ReconciliationDelta]:
+    """
+    Run the deterministic reconciler, then append fail-safe `needs-review` deltas for any
+    genuine ambiguity no rule could resolve (LLM-03 seam).
+
+    The deterministic `reconcile()` above is UNCHANGED and remains the pure, tool-free,
+    model-free core (architecture.md §7). This wrapper is the edge: it calls the ambiguity
+    classifier, which uses a real Gemini model if one is injected (network machine) or the
+    deterministic fail-safe otherwise (this environment + CI). Ambiguity deltas are ALWAYS
+    `needs-review`, never `will-fail` (AI Operating Principles §8).
+
+    Importing the ambiguity module here is safe: it has zero hard external deps (the model
+    is optional/injected). The engine itself still imports no model SDK.
+    """
+    deltas = reconcile(intended, declared, live)
+    # Local import keeps the pure engine module free of any ambiguity/model coupling at
+    # import time, and avoids a circular import (ambiguity imports models, not the engine).
+    from launchguard.ambiguity import classify_reconciliation_ambiguity  # noqa: PLC0415
+
+    deltas.extend(
+        classify_reconciliation_ambiguity(intended, declared, live, deltas)
+    )
+    return deltas
+
+
+# ---------------------------------------------------------------------------
 # Helper functions
 # ---------------------------------------------------------------------------
 

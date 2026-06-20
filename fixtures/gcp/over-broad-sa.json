@@ -1,0 +1,16 @@
+{
+  "enabled_apis": [
+    "run.googleapis.com",
+    "secretmanager.googleapis.com",
+    "iam.googleapis.com"
+  ],
+  "mode": "fixture",
+  "project_id": "demo-project",
+  "run_config": null,
+  "runtime_sa": "serviceAccount:svc@demo-project.iam.gserviceaccount.com",
+  "sa_iam_roles": [
+    "roles/owner",
+    "roles/run.invoker"
+  ],
+  "secrets": []
+}

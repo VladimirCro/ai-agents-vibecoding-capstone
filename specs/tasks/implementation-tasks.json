@@ -1,5 +1,5 @@
 {
-  "feature": "LaunchGuard \u2014 three-source contract reconciliation agent",
+  "feature": "LaunchGuard — three-source contract reconciliation agent",
   "created_by": "system-architect",
   "created_date": "2026-06-20",
   "schedule_ref": "PLAN.md (10 working days, deadline 2026-07-06 PT)",
@@ -18,13 +18,13 @@
       "id": "LLM-01",
       "agent": "llm-engineer",
       "day": "1-2",
-      "description": "ADK skeleton: agent.py (root Orchestrator) + sub_agents/ (repo_auditor, gcp_state_inspector, reconciler, fix_writer) with ADK session-state handoff. Wire native google-genai models (Gemini 2.5 Pro reasoning / 2.5 Flash parsing) per ADR-001 \u2014 NOT LiteLLM. Define per-agent tool allow-lists.",
+      "description": "ADK skeleton: agent.py (root Orchestrator) + sub_agents/ (repo_auditor, gcp_state_inspector, reconciler, fix_writer) with ADK session-state handoff. Wire native google-genai models (Gemini 2.5 Pro reasoning / 2.5 Flash parsing) per ADR-001 — NOT LiteLLM. Define per-agent tool allow-lists.",
       "depends_on": [
         "INFRA-01"
       ],
       "status": "tested",
       "acceptance_criteria": "Given the ADK app, When 'adk web' starts, Then the Orchestrator + 4 sub-agents load and a no-op run traces each agent step; Given a sub-agent, Then it can only invoke its allow-listed tools.",
-      "reconciled": "LLM-01 skeleton covered by tests/test_adk_skeleton.py (18 tests): clean import w/o google-adk, lazy build_root_agent() RuntimeError, sub-agent factories, discovery-shim None-degradation, TOOL_ALLOWLISTS least-privilege parity (ADR-001/AI Principles \u00a74). Full agent-graph run deferred to DEMO-01 (Increment 2, needs google-adk). Reconciled by dev-orchestrator 2026-06-21."
+      "reconciled": "LLM-01 skeleton covered by tests/test_adk_skeleton.py (18 tests): clean import w/o google-adk, lazy build_root_agent() RuntimeError, sub-agent factories, discovery-shim None-degradation, TOOL_ALLOWLISTS least-privilege parity (ADR-001/AI Principles §4). Full agent-graph run deferred to DEMO-01 (Increment 2, needs google-adk). Reconciled by dev-orchestrator 2026-06-21."
     },
     {
       "id": "BE-01",
@@ -45,8 +45,9 @@
       "depends_on": [
         "BE-01"
       ],
-      "status": "pending",
-      "acceptance_criteria": "Given an ambiguous entrypoint, When RepoAuditor runs, Then the field is model-classified with confidence<1.0 and never silently guessed; Given repo content with injection-looking text, Then it is not executed as instruction."
+      "status": "tested",
+      "acceptance_criteria": "Given an ambiguous entrypoint, When RepoAuditor runs, Then the field is model-classified with confidence<1.0 and never silently guessed; Given repo content with injection-looking text, Then it is not executed as instruction.",
+      "implementation_note": "Increment 2: ambiguity seam in launchguard/ambiguity.py — resolve_entrypoint_ambiguity() keeps an unresolved field UNKNOWN with confidence<1.0 (never guessed); injected-Gemini path capped at <1.0. Deterministic fail-safe is the default (no ADK/genai). Tested by tests/test_ambiguity.py. dev-orchestrator 2026-06-21."
     },
     {
       "id": "BE-02",
@@ -69,7 +70,7 @@
       ],
       "status": "tested",
       "acceptance_criteria": "Given mode=live and a read verb, Then describe/list executes; Given a mutating verb, Then 409 GUARDRAIL_READONLY_VIOLATION before exec + logged; Given secrets read, Then accessor_members listed, values never returned.",
-      "implementation_note": "live/record gcloud exec path built but NOT executed in Increment 1 (raises NotImplementedError \u2014 no live GCP access). Increment 2 removes that guard. Fixture mode fully functional."
+      "implementation_note": "live/record gcloud exec path built but NOT executed in Increment 1 (raises NotImplementedError — no live GCP access). Increment 2 removes that guard. Fixture mode fully functional."
     },
     {
       "id": "BE-04",
@@ -99,12 +100,13 @@
       "id": "LLM-03",
       "agent": "llm-engineer",
       "day": "4",
-      "description": "Reconciler ambiguity layer: when no deterministic rule fires + inputs ambiguous, Gemini 2.5 Pro classifies -> delta_class=needs-review (never confident will-fail). Generate human-readable explanation per delta. Fail-safe per AI Operating Principles \u00a78.",
+      "description": "Reconciler ambiguity layer: when no deterministic rule fires + inputs ambiguous, Gemini 2.5 Pro classifies -> delta_class=needs-review (never confident will-fail). Generate human-readable explanation per delta. Fail-safe per AI Operating Principles §8.",
       "depends_on": [
         "BE-05"
       ],
-      "status": "pending",
-      "acceptance_criteria": "Given ambiguous inputs with no rule hit, Then delta_class=needs-review with explanation; Given low confidence, Then never labeled will-fail (prefer false negative over destructive false positive)."
+      "status": "tested",
+      "acceptance_criteria": "Given ambiguous inputs with no rule hit, Then delta_class=needs-review with explanation; Given low confidence, Then never labeled will-fail (prefer false negative over destructive false positive).",
+      "implementation_note": "Increment 2: classify_reconciliation_ambiguity() + reconcile_with_ambiguity() wrapper — ambiguous residue → needs-review, NEVER will-fail (AI Principles §8). Pure reconcile() core unchanged. Tested by tests/test_ambiguity.py. dev-orchestrator 2026-06-21."
     },
     {
       "id": "BE-06",
@@ -114,8 +116,9 @@
       "depends_on": [
         "BE-05"
       ],
-      "status": "pending",
-      "acceptance_criteria": "Given a secret-accessor will-fail, Then propose_patch returns the exact add-iam-policy-binding command unexecuted; Given open_pr, Then PR created, merged=false, URL surfaced; Given any will-fail, Then verdict=BLOCKED."
+      "status": "tested",
+      "acceptance_criteria": "Given a secret-accessor will-fail, Then propose_patch returns the exact add-iam-policy-binding command unexecuted; Given open_pr, Then PR created, merged=false, URL surfaced; Given any will-fail, Then verdict=BLOCKED.",
+      "implementation_note": "Increment 2: propose_patch + open_pr implemented in launchguard/tools/fix_tools.py; deterministic FixWriter pipeline + ReadinessScorecard JSON+MD in launchguard/fix_writer_core.py. propose_patch.applied always False; open_pr mock dry-run default + GUARDRAIL_PR_TARGET_VIOLATION on default branch; real mode deferred to network machine. Tested by tests/test_fix_writer.py (24 tests). dev-orchestrator 2026-06-21."
     },
     {
       "id": "LLM-04",
@@ -125,8 +128,9 @@
       "depends_on": [
         "BE-06"
       ],
-      "status": "pending",
-      "acceptance_criteria": "Given classified deltas, Then a PR body is generated grounded in evidence with no secret values; Given any model-bound payload, Then it passed redaction first."
+      "status": "tested",
+      "acceptance_criteria": "Given classified deltas, Then a PR body is generated grounded in evidence with no secret values; Given any model-bound payload, Then it passed redaction first.",
+      "implementation_note": "Increment 2: ADK FixWriter sub-agent wired with propose_patch+open_pr tools + evidence-grounded PR-narrative instruction (launchguard/sub_agents/fix_writer.py). render_pr_body() is the deterministic grounded baseline the model must not contradict. google-adk absent → agent build raises cleanly; pipeline fully testable without model. dev-orchestrator 2026-06-21."
     },
     {
       "id": "BE-07",
@@ -139,7 +143,7 @@
       ],
       "status": "tested",
       "acceptance_criteria": "Given a mutating verb or off-allow-list tool, Then denied+logged; Given a model/trace payload, Then secret values masked (names kept); Given the demo, Then exactly one blocked-write trip visible in trace.",
-      "implementation_note": "Guardrail spine (audit.py, enforce.py, redact.py) fully implemented. BE-06 dependency (open_pr) deferred \u2014 FixWriter tools are BE-06 scope, not yet implemented. Guardrail spine is complete and wired into BE-03/BE-01 seams."
+      "implementation_note": "Guardrail spine (audit.py, enforce.py, redact.py) fully implemented. BE-06 dependency (open_pr) deferred — FixWriter tools are BE-06 scope, not yet implemented. Guardrail spine is complete and wired into BE-03/BE-01 seams."
     },
     {
       "id": "BE-08",
@@ -152,7 +156,7 @@
       ],
       "status": "tested",
       "acceptance_criteria": "Given 8-10 fixtures, Then each has a repo + redacted live snapshot + labels file; Given the hero fixture, Then the SECRET_FOO gap is the labeled blocker; Given clean-repo, Then zero labeled blockers.",
-      "implementation_note": "Hero fixture (worknote-ai-like) implemented: Dockerfile + service.yaml + app.py + GCP fixture JSON + labels.json. JWT_SECRET_KEY accessor gap confirmed KILLER delta in e2e test. Full 8-10 fixture set (additional scenario fixtures) deferred to Increment 2 (BE-08 remainder)."
+      "implementation_note": "Increment 2 (remainder complete): scripts/build_fixtures.py generates 8 additional fixtures (secret-not-created, port-mismatch, missing-health-probe, over-broad-sa, scaling-cost, api-not-enabled[+missing-required-role], host-and-pid1, clean-control true-negative) each with repo+golden GCP snapshot+labels. 9 fixtures total. Eval matrix: precision/recall/F1=1.00, 0 FP on clean control. Tested by tests/test_eval_matrix.py. dev-orchestrator 2026-06-21."
     },
     {
       "id": "QA-01",
@@ -166,7 +170,8 @@
         "LLM-04"
       ],
       "status": "tested",
-      "acceptance_criteria": "Given the fixture set, When run_eval runs, Then precision/recall reported + headline metric in JSON+Markdown; Given the hero fixture, Then SECRET_FOO detected (TP); Given clean-repo, Then no false positives; Given fixture replay x2, Then identical findings."
+      "acceptance_criteria": "Given the fixture set, When run_eval runs, Then precision/recall reported + headline metric in JSON+Markdown; Given the hero fixture, Then SECRET_FOO detected (TP); Given clean-repo, Then no false positives; Given fixture replay x2, Then identical findings.",
+      "implementation_note": " Increment 2: eval harness extended — required_apis injection from labels, warning (will-misbehave/cost-risk) coverage tracking, F1 metric, scorecard JSON+MD. Gated in tests/ via tests/test_eval_matrix.py (eval/run_eval.py is not collected by default pytest)."
     },
     {
       "id": "BE-09",
@@ -177,8 +182,9 @@
         "BE-05",
         "INFRA-01"
       ],
-      "status": "pending",
-      "acceptance_criteria": "Given a prior stored finding + same gap recurs, Then finding annotated 'recurring \u2014 seen on <date>'; Given no history, Then run proceeds with no recall; Given a stored finding, Then no secret value persisted."
+      "status": "tested",
+      "acceptance_criteria": "Given a prior stored finding + same gap recurs, Then finding annotated 'recurring — seen on <date>'; Given no history, Then run proceeds with no recall; Given a stored finding, Then no secret value persisted.",
+      "implementation_note": "Increment 2: launchguard/memory/ — MemoryStore + InMemoryStore (default) + import-guarded PgVectorStore (psycopg lazy) + hash-embedder (pure-Python, no numpy) + annotate_recurring. Additive/non-blocking; recall scoped per project; redaction before persist. Postgres unreachable in sandbox → graceful in-memory fallback. Tested by tests/test_memory.py. dev-orchestrator 2026-06-21."
     },
     {
       "id": "QA-02",
@@ -188,8 +194,9 @@
       "depends_on": [
         "BE-09"
       ],
-      "status": "pending",
-      "acceptance_criteria": "Given repeat analysis, Then recurring annotation; Given empty store, Then no block; Given persisted finding, Then redacted."
+      "status": "tested",
+      "acceptance_criteria": "Given repeat analysis, Then recurring annotation; Given empty store, Then no block; Given persisted finding, Then redacted.",
+      "implementation_note": "Increment 2: memory tests in tests/test_memory.py — recurring annotation on repeat run, additive non-blocking on empty/broken store, redaction of persisted summaries, deterministic embedder. dev-orchestrator 2026-06-21."
     },
     {
       "id": "DEMO-01",

@@ -86,6 +86,13 @@ class FixtureResult:
     precision: float
     recall: float
 
+    # Non-blocking finding coverage (will-misbehave / cost-risk). Informational —
+    # extra advisory findings do NOT count against the headline blocker precision.
+    expected_warning_rule_ids: list[str] = field(default_factory=list)
+    detected_warning_rule_ids: list[str] = field(default_factory=list)
+    warning_true_positives: list[str] = field(default_factory=list)
+    warning_missed: list[str] = field(default_factory=list)
+
     error: str = ""                           # non-empty if the run crashed
 
 
@@ -104,6 +111,12 @@ class EvalSummary:
 
     aggregate_precision: float
     aggregate_recall: float
+    aggregate_f1: float = 0.0
+
+    # Warning (non-blocking) coverage across fixtures
+    total_expected_warnings: int = 0
+    total_warning_tp: int = 0
+    warning_recall: float = 1.0
 
     fixture_results: list[FixtureResult] = field(default_factory=list)
 
@@ -177,10 +190,19 @@ def run_fixture(fixture_info: dict) -> FixtureResult:  # type: ignore[type-arg]
     expected_verdict = labels.get("expected_verdict", "READY")
     expected_blockers = labels.get("expected_blockers", [])
     expected_blocker_rule_ids = [b["rule_id"] for b in expected_blockers]
+    expected_warnings = labels.get("expected_warnings", [])
+    expected_warning_rule_ids = [w["rule_id"] for w in expected_warnings]
 
     try:
         # Step 1: Build IntendedContract
         intended = build_intended_contract(str(repo_path))
+
+        # LLM-02 deferred (no ADK/Gemini in CI): the deterministic parser cannot infer
+        # required_apis from arbitrary client-library imports. The fixture's labels carry
+        # the ground-truth required_apis so the api-not-enabled / missing-required-role
+        # detectors fire deterministically. On a network machine LLM-02 populates this.
+        if labels.get("required_apis"):
+            intended.required_apis = list(labels["required_apis"])
 
         # Step 2: Parse DeclaredState (optional — not all fixtures have service.yaml)
         if service_yaml_path and service_yaml_path.exists():
@@ -220,6 +242,16 @@ def run_fixture(fixture_info: dict) -> FixtureResult:  # type: ignore[type-arg]
         fp_ids = sorted(detected_set - expected_set)
         fn_ids = sorted(expected_set - detected_set)
 
+        # Non-blocking findings (will-misbehave / cost-risk) — coverage only.
+        detected_warning_rule_ids = sorted({
+            d.rule_id for d in scorecard.deltas
+            if d.delta_class in ("will-misbehave", "cost-risk")
+        })
+        exp_warn_set = set(expected_warning_rule_ids)
+        det_warn_set = set(detected_warning_rule_ids)
+        warning_tp = sorted(exp_warn_set & det_warn_set)
+        warning_missed = sorted(exp_warn_set - det_warn_set)
+
         tp_count = len(tp_ids)
         fp_count = len(fp_ids)
         fn_count = len(fn_ids)
@@ -241,6 +273,10 @@ def run_fixture(fixture_info: dict) -> FixtureResult:  # type: ignore[type-arg]
             false_negatives=fn_ids,
             precision=precision,
             recall=recall,
+            expected_warning_rule_ids=sorted(expected_warning_rule_ids),
+            detected_warning_rule_ids=detected_warning_rule_ids,
+            warning_true_positives=warning_tp,
+            warning_missed=warning_missed,
         )
 
     except Exception as exc:
@@ -256,6 +292,10 @@ def run_fixture(fixture_info: dict) -> FixtureResult:  # type: ignore[type-arg]
             false_negatives=expected_blocker_rule_ids,
             precision=0.0,
             recall=0.0,
+            expected_warning_rule_ids=sorted(expected_warning_rule_ids),
+            detected_warning_rule_ids=[],
+            warning_true_positives=[],
+            warning_missed=sorted(expected_warning_rule_ids),
             error=f"{type(exc).__name__}: {exc}",
         )
 
@@ -282,10 +322,23 @@ def compute_summary(results: list[FixtureResult]) -> EvalSummary:
     agg_recall = (
         total_tp / (total_tp + total_fn) if (total_tp + total_fn) > 0 else 1.0
     )
+    agg_f1 = (
+        2 * agg_precision * agg_recall / (agg_precision + agg_recall)
+        if (agg_precision + agg_recall) > 0 else 0.0
+    )
+
+    total_expected_warnings = sum(len(r.expected_warning_rule_ids) for r in results)
+    total_warning_tp = sum(len(r.warning_true_positives) for r in results)
+    warning_recall = (
+        total_warning_tp / total_expected_warnings
+        if total_expected_warnings > 0 else 1.0
+    )
 
     headline = (
         f"Caught {total_tp}/{total_tp + total_fn} blockers across {total} fixture(s); "
-        f"precision={agg_precision:.2f} / recall={agg_recall:.2f}"
+        f"precision={agg_precision:.2f} / recall={agg_recall:.2f} / F1={agg_f1:.2f}; "
+        f"{total_fp} false-positive blocker(s) on the control set; "
+        f"warning coverage {total_warning_tp}/{total_expected_warnings}"
     )
 
     return EvalSummary(
@@ -299,6 +352,10 @@ def compute_summary(results: list[FixtureResult]) -> EvalSummary:
         total_fn=total_fn,
         aggregate_precision=agg_precision,
         aggregate_recall=agg_recall,
+        aggregate_f1=agg_f1,
+        total_expected_warnings=total_expected_warnings,
+        total_warning_tp=total_warning_tp,
+        warning_recall=warning_recall,
         fixture_results=results,
         headline=headline,
     )
@@ -321,10 +378,14 @@ def emit_scorecard_json(summary: EvalSummary) -> Path:
         "errored_fixtures": summary.errored_fixtures,
         "aggregate_precision": round(summary.aggregate_precision, 4),
         "aggregate_recall": round(summary.aggregate_recall, 4),
+        "aggregate_f1": round(summary.aggregate_f1, 4),
         "total_expected_blockers": summary.total_expected_blockers,
         "total_tp": summary.total_tp,
         "total_fp": summary.total_fp,
         "total_fn": summary.total_fn,
+        "total_expected_warnings": summary.total_expected_warnings,
+        "total_warning_tp": summary.total_warning_tp,
+        "warning_recall": round(summary.warning_recall, 4),
         "fixtures": [
             {
                 "name": r.name,
@@ -338,6 +399,10 @@ def emit_scorecard_json(summary: EvalSummary) -> Path:
                 "false_negatives": r.false_negatives,
                 "precision": round(r.precision, 4),
                 "recall": round(r.recall, 4),
+                "expected_warnings": r.expected_warning_rule_ids,
+                "detected_warnings": r.detected_warning_rule_ids,
+                "warning_true_positives": r.warning_true_positives,
+                "warning_missed": r.warning_missed,
                 "error": r.error or None,
             }
             for r in summary.fixture_results
@@ -357,7 +422,7 @@ def emit_scorecard_md(summary: EvalSummary) -> Path:
     output_path = _SCORECARD_DIR / "scorecard.md"
 
     lines = [
-        "# LaunchGuard Eval Scorecard — Increment 1",
+        "# LaunchGuard Eval Scorecard",
         "",
         "## Headline",
         "",
@@ -367,11 +432,14 @@ def emit_scorecard_md(summary: EvalSummary) -> Path:
         "|---|---|",
         f"| Fixtures | {summary.total_fixtures} |",
         f"| Verdict match | {summary.passed_fixtures}/{summary.total_fixtures} |",
-        f"| Aggregate precision | {summary.aggregate_precision:.2%} |",
-        f"| Aggregate recall | {summary.aggregate_recall:.2%} |",
-        f"| True positives | {summary.total_tp} |",
-        f"| False positives | {summary.total_fp} |",
-        f"| False negatives | {summary.total_fn} |",
+        f"| Blocker precision | {summary.aggregate_precision:.2%} |",
+        f"| Blocker recall | {summary.aggregate_recall:.2%} |",
+        f"| Blocker F1 | {summary.aggregate_f1:.2%} |",
+        f"| Blocker true positives | {summary.total_tp} |",
+        f"| Blocker false positives | {summary.total_fp} |",
+        f"| Blocker false negatives | {summary.total_fn} |",
+        f"| Warning coverage | {summary.total_warning_tp}/{summary.total_expected_warnings} "
+        f"({summary.warning_recall:.0%}) |",
         "",
         "## Per-Fixture Results",
         "",
@@ -396,6 +464,11 @@ def emit_scorecard_md(summary: EvalSummary) -> Path:
                 lines.append(f"- False positives (unexpected): {r.false_positives}")
             if r.false_negatives:
                 lines.append(f"- False negatives (missed): {r.false_negatives}")
+            if r.expected_warning_rule_ids or r.detected_warning_rule_ids:
+                lines.append(f"- Expected warnings: {r.expected_warning_rule_ids or '(none)'}")
+                lines.append(f"- Detected warnings: {r.detected_warning_rule_ids or '(none)'}")
+                if r.warning_missed:
+                    lines.append(f"- Warnings missed: {r.warning_missed}")
             lines.append("")
 
     output_path.write_text("\n".join(lines), encoding="utf-8")
@@ -481,6 +554,29 @@ def test_fixture_verdict_matches_ground_truth(fixture_info: dict) -> None:  # ty
     assert not result.false_positives, (
         f"Fixture '{result.name}': unexpected will-fail deltas detected (false positives): "
         f"{result.false_positives}"
+    )
+
+    assert not result.warning_missed, (
+        f"Fixture '{result.name}': expected non-blocking warnings not detected: "
+        f"{result.warning_missed}"
+    )
+
+
+def test_clean_control_has_no_findings() -> None:
+    """
+    The clean-control true-negative fixture must produce ZERO deltas of any class —
+    no false positives at all (AI Operating Principles §8 cost-asymmetry guard).
+    """
+    fixtures = _get_fixture_infos()
+    clean = next((f for f in fixtures if f["name"] == "clean-control"), None)
+    if clean is None:
+        pytest.fail("clean-control fixture not found — required true-negative control.")
+    result = run_fixture(clean)
+    assert not result.error, f"clean-control errored: {result.error}"
+    assert result.verdict == "READY", f"clean-control verdict={result.verdict}, expected READY"
+    assert not result.false_positives, f"clean-control false-positive blockers: {result.false_positives}"
+    assert not result.detected_warning_rule_ids, (
+        f"clean-control should fire NO warnings, got: {result.detected_warning_rule_ids}"
     )
 
 

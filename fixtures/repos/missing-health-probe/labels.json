@@ -1,0 +1,16 @@
+{
+  "fixture_name": "missing-health-probe",
+  "description": "App exposes /health and /ready but service.yaml has no probes.",
+  "expected_verdict": "WARN",
+  "expected_blockers": [],
+  "expected_warnings": [
+    {
+      "rule_id": "missing-health-probe",
+      "delta_class": "will-misbehave"
+    },
+    {
+      "rule_id": "missing-startup-probe",
+      "delta_class": "will-misbehave"
+    }
+  ]
+}

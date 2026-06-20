@@ -1,16 +1,215 @@
 {
-  "headline": "Caught 1/1 blockers across 1 fixture(s); precision=1.00 / recall=1.00",
-  "total_fixtures": 1,
-  "passed_fixtures": 1,
+  "headline": "Caught 4/4 blockers across 9 fixture(s); precision=1.00 / recall=1.00 / F1=1.00; 0 false-positive blocker(s) on the control set; warning coverage 8/8",
+  "total_fixtures": 9,
+  "passed_fixtures": 9,
   "failed_fixtures": 0,
   "errored_fixtures": 0,
   "aggregate_precision": 1.0,
   "aggregate_recall": 1.0,
-  "total_expected_blockers": 1,
-  "total_tp": 1,
+  "aggregate_f1": 1.0,
+  "total_expected_blockers": 4,
+  "total_tp": 4,
   "total_fp": 0,
   "total_fn": 0,
+  "total_expected_warnings": 8,
+  "total_warning_tp": 8,
+  "warning_recall": 1.0,
   "fixtures": [
+    {
+      "name": "api-not-enabled",
+      "verdict": "BLOCKED",
+      "expected_verdict": "BLOCKED",
+      "verdict_match": true,
+      "expected_blockers": [
+        "api-not-enabled",
+        "missing-required-role"
+      ],
+      "detected_blockers": [
+        "api-not-enabled",
+        "missing-required-role"
+      ],
+      "true_positives": [
+        "api-not-enabled",
+        "missing-required-role"
+      ],
+      "false_positives": [],
+      "false_negatives": [],
+      "precision": 1.0,
+      "recall": 1.0,
+      "expected_warnings": [],
+      "detected_warnings": [],
+      "warning_true_positives": [],
+      "warning_missed": [],
+      "error": null
+    },
+    {
+      "name": "clean-control",
+      "verdict": "READY",
+      "expected_verdict": "READY",
+      "verdict_match": true,
+      "expected_blockers": [],
+      "detected_blockers": [],
+      "true_positives": [],
+      "false_positives": [],
+      "false_negatives": [],
+      "precision": 1.0,
+      "recall": 1.0,
+      "expected_warnings": [],
+      "detected_warnings": [],
+      "warning_true_positives": [],
+      "warning_missed": [],
+      "error": null
+    },
+    {
+      "name": "host-and-pid1",
+      "verdict": "WARN",
+      "expected_verdict": "WARN",
+      "verdict_match": true,
+      "expected_blockers": [],
+      "detected_blockers": [],
+      "true_positives": [],
+      "false_positives": [],
+      "false_negatives": [],
+      "precision": 1.0,
+      "recall": 1.0,
+      "expected_warnings": [
+        "host-not-0.0.0.0",
+        "pid1-signal-unsafe"
+      ],
+      "detected_warnings": [
+        "host-not-0.0.0.0",
+        "pid1-signal-unsafe"
+      ],
+      "warning_true_positives": [
+        "host-not-0.0.0.0",
+        "pid1-signal-unsafe"
+      ],
+      "warning_missed": [],
+      "error": null
+    },
+    {
+      "name": "missing-health-probe",
+      "verdict": "WARN",
+      "expected_verdict": "WARN",
+      "verdict_match": true,
+      "expected_blockers": [],
+      "detected_blockers": [],
+      "true_positives": [],
+      "false_positives": [],
+      "false_negatives": [],
+      "precision": 1.0,
+      "recall": 1.0,
+      "expected_warnings": [
+        "missing-health-probe",
+        "missing-startup-probe"
+      ],
+      "detected_warnings": [
+        "missing-health-probe",
+        "missing-startup-probe"
+      ],
+      "warning_true_positives": [
+        "missing-health-probe",
+        "missing-startup-probe"
+      ],
+      "warning_missed": [],
+      "error": null
+    },
+    {
+      "name": "over-broad-sa",
+      "verdict": "WARN",
+      "expected_verdict": "WARN",
+      "verdict_match": true,
+      "expected_blockers": [],
+      "detected_blockers": [],
+      "true_positives": [],
+      "false_positives": [],
+      "false_negatives": [],
+      "precision": 1.0,
+      "recall": 1.0,
+      "expected_warnings": [
+        "over-broad-sa-role"
+      ],
+      "detected_warnings": [
+        "over-broad-sa-role"
+      ],
+      "warning_true_positives": [
+        "over-broad-sa-role"
+      ],
+      "warning_missed": [],
+      "error": null
+    },
+    {
+      "name": "port-mismatch",
+      "verdict": "WARN",
+      "expected_verdict": "WARN",
+      "verdict_match": true,
+      "expected_blockers": [],
+      "detected_blockers": [],
+      "true_positives": [],
+      "false_positives": [],
+      "false_negatives": [],
+      "precision": 1.0,
+      "recall": 1.0,
+      "expected_warnings": [
+        "port-mismatch"
+      ],
+      "detected_warnings": [
+        "port-mismatch"
+      ],
+      "warning_true_positives": [
+        "port-mismatch"
+      ],
+      "warning_missed": [],
+      "error": null
+    },
+    {
+      "name": "scaling-cost",
+      "verdict": "WARN",
+      "expected_verdict": "WARN",
+      "verdict_match": true,
+      "expected_blockers": [],
+      "detected_blockers": [],
+      "true_positives": [],
+      "false_positives": [],
+      "false_negatives": [],
+      "precision": 1.0,
+      "recall": 1.0,
+      "expected_warnings": [
+        "scaling-cost-flag"
+      ],
+      "detected_warnings": [
+        "scaling-cost-flag"
+      ],
+      "warning_true_positives": [
+        "scaling-cost-flag"
+      ],
+      "warning_missed": [],
+      "error": null
+    },
+    {
+      "name": "secret-not-created",
+      "verdict": "BLOCKED",
+      "expected_verdict": "BLOCKED",
+      "verdict_match": true,
+      "expected_blockers": [
+        "secret-declared-not-created"
+      ],
+      "detected_blockers": [
+        "secret-declared-not-created"
+      ],
+      "true_positives": [
+        "secret-declared-not-created"
+      ],
+      "false_positives": [],
+      "false_negatives": [],
+      "precision": 1.0,
+      "recall": 1.0,
+      "expected_warnings": [],
+      "detected_warnings": [],
+      "warning_true_positives": [],
+      "warning_missed": [],
+      "error": null
+    },
     {
       "name": "worknote-ai-like",
       "verdict": "BLOCKED",
@@ -29,6 +228,16 @@
       "false_negatives": [],
       "precision": 1.0,
       "recall": 1.0,
+      "expected_warnings": [
+        "scaling-cost-flag"
+      ],
+      "detected_warnings": [
+        "scaling-cost-flag"
+      ],
+      "warning_true_positives": [
+        "scaling-cost-flag"
+      ],
+      "warning_missed": [],
       "error": null
     }
   ]
