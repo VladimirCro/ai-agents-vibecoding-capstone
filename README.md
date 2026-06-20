@@ -11,7 +11,11 @@ Tečaj pokriva (Day 1–5): agente & vibe coding → tools & interoperabilnost �
 context engineering (sessions, skills, memory) → quality & security →
 prototype-to-production (cloud deploy, observability).
 
-## Submission (rok: 30.6.2026. 23:59 PT)
+> **Format: HACKATHON, bez dataseta.** Competition `NOTE.md` izričito kaže
+> *"This is a Hackathon with no provided dataset."* → nema ML pipeline-a
+> (treniranje/EDA); vrijednost je u agentu koji se gradi i deploya + writeup/video.
+
+## Submission (rok: 2026-07-07 06:59 UTC)
 
 - [ ] Writeup na Kaggle-u
 - [ ] Video objašnjenje
