@@ -143,7 +143,9 @@ def _try_build_agent_for_adk_discovery():
         pass
 
 
-_try_build_agent_for_adk_discovery()
+# NOTE: the module-level discovery call is at the BOTTOM of this file, AFTER
+# _ORCHESTRATOR_INSTRUCTION is defined — build_root_agent() references it at call time,
+# so the constant must exist before the call runs at import.
 
 
 # ---------------------------------------------------------------------------
@@ -209,3 +211,9 @@ DO NOT:
   - Generate diffs or open PRs yourself (FixWriter does this).
   - Emit secret values in any output.
 """
+
+
+# ---------------------------------------------------------------------------
+# ADK module-level agent discovery (runs AFTER _ORCHESTRATOR_INSTRUCTION is defined)
+# ---------------------------------------------------------------------------
+_try_build_agent_for_adk_discovery()
