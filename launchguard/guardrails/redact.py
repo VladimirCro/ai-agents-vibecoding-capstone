@@ -85,7 +85,9 @@ _SAFE_PASSTHROUGH_KEYS: frozenset[str] = frozenset({
     "runtime_sa",
     "sa_iam_roles",
     "enabled_apis",
-    "secrets",       # list of {name, accessor_members} — values never present
+    "secrets",                # list of {name, accessor_members} — values never present
+    "secret_refs",            # list of secret NAMES from IntendedContract/DeclaredState
+    "secret_env_ref_names",   # list of secret NAMES from run_config — names, not values
     "evidence",
     "matches",
     "file",
