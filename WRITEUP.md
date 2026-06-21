@@ -64,7 +64,7 @@ host/PID1, env-var mismatch) plus a **clean-control true-negative**:
 | Blocker precision / recall / F1 | **1.00 / 1.00 / 1.00** |
 | False positives on clean-control | **0** |
 | Warning coverage | 8/8 |
-| Test suite (`make verify`: ruff + mypy + pytest) | **247 passing** |
+| Test suite (`make verify`: ruff + mypy + pytest) | **285 passing** |
 
 The hero detector `secret-ref-without-secretAccessor`, run against a fixture modeled on a real
 service, returns verdict **BLOCKED** at confidence 0.98 and emits the exact remediation:
@@ -76,6 +76,25 @@ gcloud secrets add-iam-policy-binding JWT_SECRET_KEY \
 ```
 
 (`applied=false` — proposed as a PR, never executed.)
+
+### Validated on a real production service
+
+LaunchGuard was run against my actual Cloud Run service `worknote-ai-staging` (read-only
+`gcloud` describe/list/get-iam-policy — never a mutating call). It reconciled the real repo
+(intended) against the real `service.yaml` (declared) against the real GCP state (15 secrets,
+8 SA roles, 56 enabled APIs, recorded into a redacted golden fixture).
+
+- **Verdict: WARN** — one genuine `will-misbehave` finding (`unpinned-base-image` in the real
+  Dockerfile, confidence 0.90), **zero false positives**. Every secret the service references is
+  in fact granted to the runtime SA — so the killer correctly did *not* fire on the real,
+  correctly-configured service.
+- The killer is demonstrated on a **minimal counterfactual** (`worknote-ai-gap`): the real fixture
+  with exactly one field changed — `JWT_SECRET_KEY`'s accessor grant dropped — which makes
+  `secret-ref-without-secretAccessor` fire (BLOCKED, confidence 0.98). Nothing manufactured; one
+  honest field flip.
+
+This is the credibility point: a real production service comes back clean (no false alarms), and
+the failure mode is shown on a one-field delta from that same real state.
 
 ## Reproducibility
 
