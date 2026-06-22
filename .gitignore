@@ -44,3 +44,8 @@ docs/E2E_PATTERNS.md
 docs/MODEL_POLICY.md
 docs/templates/api-contracts-template.yaml
 docs-templates/
+
+# Generated video build artifacts (uploaded to YouTube, not tracked)
+assets/_videobuild/
+assets/launchguard-video.mp4
+assets/demo.mp4
