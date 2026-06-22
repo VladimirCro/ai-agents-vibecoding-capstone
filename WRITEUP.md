@@ -104,8 +104,38 @@ That's what makes the precision/recall numbers credible rather than a cherry-pic
 
 ## Demo
 
-[VIDEO LINK] — on a real Cloud Run service: a missing IAM grant caught before deploy → fix PR →
-guardrail blocked-write trip → eval scorecard.
+Reproduce in ~30 seconds — deterministic, **no API key or network required**:
+
+```bash
+python scripts/demo.py
+```
+
+Animated terminal capture: [`assets/demo.svg`](assets/demo.svg) (open in a browser).
+
+Actual output — LaunchGuard on the real service, then on a one-field counterfactual:
+
+```text
+SCENARIO 1 — REAL worknote-ai-staging (live GCP state, redacted snapshot)
+  VERDICT: WARN   (will-fail=0, will-misbehave=1, cost-risk=0, needs-review=0)
+  • [will-misbehave] unpinned-base-image (conf 0.9)
+    The Dockerfile's base image is not pinned to a tag/SHA — builds not reproducible.
+
+SCENARIO 2 — worknote-ai with JWT_SECRET_KEY accessor dropped (counterfactual)
+  VERDICT: BLOCKED   (will-fail=1, will-misbehave=1, cost-risk=0, needs-review=0)
+  • [will-fail] secret-ref-without-secretAccessor (conf 0.98)
+    Secret 'JWT_SECRET_KEY' is referenced in code (Intended) and service.yaml (Declared)
+    but the runtime SA lacks roles/secretmanager.secretAccessor → first request 500s.
+
+  Proposed fix (PR — applied=False, human-in-the-loop):
+    gcloud secrets add-iam-policy-binding JWT_SECRET_KEY \
+      --project=worknote-ai \
+      --member='serviceAccount:worknote-staging-run@worknote-ai.iam.gserviceaccount.com' \
+      --role='roles/secretmanager.secretAccessor'
+```
+
+The real production service comes back clean of blockers (no false alarm); the deploy-breaking
+failure mode is shown on a one-field delta from that same real state. Same pipeline can be driven
+by the live Gemini orchestrator via `adk web` (see `NETWORK_PASS.md`).
 
 ## Limitations & honest notes
 
@@ -117,5 +147,6 @@ guardrail blocked-write trip → eval scorecard.
 
 ## Code
 
-[REPO LINK] — Apache/CC-BY-4.0 on win. Built solo with the dev-agents workflow (spec → build →
-review → QA), reusing a hand-authored Cloud Run deployment playbook as the detector rule source.
+**https://github.com/VladimirCro/ai-agents-vibecoding-capstone** (public, CC-BY-4.0).
+Built solo with a spec → build → review → QA workflow, reusing a hand-authored Cloud Run
+deployment playbook as the detector rule source. `make verify`: 283 tests green.
