@@ -1,6 +1,6 @@
 # LaunchGuard — Cloud Run deploy-readiness agent
 
-> **DRAFT Kaggle writeup** — za finalizaciju nakon network-pass demoa. Trač: Agents for Business.
+*Track: Agents for Business — Google × Kaggle: AI Agents Intensive (Vibe Coding) capstone*
 
 ## The problem (and why it's silent)
 
@@ -151,4 +151,4 @@ by the live Gemini orchestrator via `adk web` (see `NETWORK_PASS.md`).
 
 **https://github.com/VladimirCro/ai-agents-vibecoding-capstone** (public, CC-BY-4.0).
 Built solo with a spec → build → review → QA workflow, reusing a hand-authored Cloud Run
-deployment playbook as the detector rule source. `make verify`: 283 tests green.
+deployment playbook as the detector rule source. `make verify`: 285 tests green.
