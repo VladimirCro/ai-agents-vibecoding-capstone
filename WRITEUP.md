@@ -104,6 +104,8 @@ That's what makes the precision/recall numbers credible rather than a cherry-pic
 
 ## Demo
 
+📹 **Video (≈5 min):** https://youtu.be/B2C1K4oHvSw
+
 Reproduce in ~30 seconds — deterministic, **no API key or network required**:
 
 ```bash
